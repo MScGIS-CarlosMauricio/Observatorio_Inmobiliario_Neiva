@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OICNE · Observatorio Inmobiliario de Neiva</title>
+  <link rel="stylesheet" href="/resources/ol.css">
+  <link rel="stylesheet" href="/styles.css">
+  <script defer src="/resources/ol.js"></script>
+  <script defer src="/config.js"></script>
+  <script defer src="/cliente_oicne.js"></script>
+  <script defer src="/app.js"></script>
+</head>
+<body>
+  <header>
+    <div class="brand">OICNE</div>
+    <div><h1>Observatorio Inmobiliario de Neiva</h1>
+      <p>Ofertas inmobiliarias · urbano y rural · consulta pública 2026 · datos en Supabase</p></div>
+    <span class="local-badge">CONSULTA PÚBLICA</span>
+  </header>
+  <main>
+    <aside>
+      <section class="card">
+        <h2>Consultar ofertas</h2>
+        <form id="filters">
+          <label for="q">Barrio, tipo, fuente o identificador</label>
+          <input id="q" name="q" placeholder="Ej. Cándido, apartamento…" maxlength="100">
+          <div class="fields">
+            <div><label for="offer_type">Operación</label><select id="offer_type" name="offer_type">
+              <option value="">Todas</option><option>VENTA</option><option>ARRIENDO</option>
+              <option value="SIN_CLASIFICAR">Sin clasificar</option>
+            </select></div>
+            <div><label for="property_type">Tipo de inmueble</label><select id="property_type" name="property_type"><option value="">Todos</option></select></div>
+          </div>
+          <label for="layer">Procedencia</label><select id="layer" name="layer">
+            <option value="">Todas las procedencias</option>
+            <option value="capturas">Web Scraping (Capturas web)</option>
+            <option value="historicas">Ofertas históricas</option>
+            <option value="interes">Puntos de interés inmobiliario</option>
+          </select>
+          <label for="source">Fuente</label><select id="source" name="source"><option value="">Todas</option></select>
+          <div class="fields">
+            <div><label for="min_price">Precio mínimo COP</label><input id="min_price" name="min_price" type="number" min="0" step="any"></div>
+            <div><label for="max_price">Precio máximo COP</label><input id="max_price" name="max_price" type="number" min="0" step="any"></div>
+          </div>
+          <label for="location">Ubicación</label><select id="location" name="location">
+            <option value="">Con y sin coordenadas</option><option value="mapped">Con ubicación de la fuente</option>
+            <option value="unmapped">Sin coordenadas verificadas</option>
+          </select>
+          <div class="fields actions"><button type="submit">Buscar ofertas</button><button id="clear-filters" type="button" class="secondary">Limpiar</button></div>
+        </form>
+        <p id="status" role="status">Cargando ofertas…</p>
+      </section>
+      <section class="card">
+        <h2>Mapa base y capas</h2>
+        <label for="basemap">Fondo cartográfico</label><select id="basemap">
+          <option value="osm">Calles · OpenStreetMap</option><option value="satellite">Satelital · Esri</option>
+          <option value="topographic">Topográfico · Esri</option><option value="none">Sin mapa base</option>
+        </select>
+        <p id="basemap-status" class="note" role="status">Los fondos requieren Internet; no indican la fecha de los anuncios.</p>
+        <label class="check"><input id="show-historicas" type="checkbox" checked> Ofertas históricas</label>
+        <label class="check"><input id="show-interes" type="checkbox" checked><span class="dot interest"></span> Puntos de interés</label>
+        <label class="check"><input id="show-capturas" type="checkbox" checked> Web Scraping (Capturas web)</label>
+        <p class="note">Despliegue Ventas o Arrendamientos para activar tipos de inmueble. El color identifica el tipo; círculo: venta, triángulo: arrendamiento, rombo: sin clasificar. Las casillas solo afectan el mapa; tabla, indicadores y descarga se filtran desde la consulta.</p>
+        <label class="check"><input id="show-blocks" type="checkbox"> Manzanas</label>
+        <p id="blocks-status" class="note" role="status">Manzanas desde zoom 14; números de cuatro dígitos desde zoom 16. Al alejarse, las etiquetas se ocultan.</p>
+        <button id="extent" class="secondary" type="button">Ver extensión de resultados</button>
+      </section>
+      <section class="card"><h2>Ficha seleccionada</h2><div id="details" class="note">Seleccione un punto del mapa o una fila de resultados.</div></section>
+      <section class="card">
+        <h2>Calidad y alcance</h2><ul id="warnings" class="note"></ul>
+        <p class="note">Precios de oferta, no transacciones ni avalúos. Los proyectos pueden publicar precios y áreas «desde».
+          La ubicación del portal puede ser aproximada. No se exponen nombres, teléfonos, correos, NPN ni direcciones exactas.</p>
+        <p class="note">El acceso público no acredita permiso de reutilización masiva: revisar condiciones y vigencia antes de publicar institucionalmente.</p>
+      </section>
+    </aside>
+    <section class="workspace">
+      <div class="indicators">
+        <div><span>Resultados</span><strong id="k-total">—</strong></div>
+        <div><span>Con ubicación</span><strong id="k-mapped">—</strong></div>
+        <div><span>Sin coordenadas</span><strong id="k-unmapped">—</strong></div>
+        <div><span>Con precio COP</span><strong id="k-priced">—</strong></div>
+      </div>
+      <div class="tabs" role="tablist" aria-label="Vistas del observatorio">
+        <button id="tab-map" role="tab" aria-selected="true" aria-controls="panel-map">Mapa</button>
+        <button id="tab-table" role="tab" aria-selected="false" aria-controls="panel-table">Ofertas y estadísticas</button>
+        <button id="tab-sources" role="tab" aria-selected="false" aria-controls="panel-sources">15 fuentes web</button>
+        <a id="download" href="/api/export.csv" download>Descargar selección CSV</a>
+      </div>
+      <div id="panel-map" class="panel" role="tabpanel" aria-labelledby="tab-map">
+        <div id="map" aria-label="Mapa interactivo de ofertas inmobiliarias de Neiva"></div>
+        <section id="map-legend" class="map-legend" aria-label="Leyenda de símbolos del mapa">
+          <h2>Leyenda</h2>
+        </section>
+        <div class="map-note">Neiva · WGS84 · los registros sin coordenadas solo se consultan en la tabla</div>
+      </div>
+      <div id="panel-table" class="panel scroll" role="tabpanel" aria-labelledby="tab-table" hidden>
+        <section class="table-heading"><h2>Resultados de la consulta</h2>
+          <p id="price-note" class="note"></p><div id="distribution" class="distribution"></div></section>
+        <p class="note table-heading">Las capturas no garantizan disponibilidad actual. Haga clic en «Ver ficha» para consultar la fuente y fecha.</p>
+        <div class="table-scroll"><table>
+          <thead><tr><th>Operación</th><th>Inmueble</th><th>Barrio</th><th>Precio publicado</th><th>Área m²</th><th>Fuente / captura</th><th>Ubicación</th><th>Consulta</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table></div>
+        <div class="pagination"><button id="previous" class="secondary">Anterior</button><span id="page-status"></span><button id="next" class="secondary">Siguiente</button></div>
+      </div>
+      <div id="panel-sources" class="panel scroll" role="tabpanel" aria-labelledby="tab-sources" hidden>
+        <div class="table-heading"><h2>Fuentes de consulta y extracción</h2>
+          <p class="note">Se informa el resultado real de cada intento, no una cobertura total. Robots permitido no equivale a extracción exitosa.
+            Los portales sin datos estructurados requieren un adaptador. No se superan CAPTCHA, bloqueos ni autenticación.</p>
+          <button id="refresh" type="button">Recargar datos y estados</button><p id="sources-status" role="status"></p>
+          <div id="sources"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <div id="popup" class="popup" role="dialog" aria-label="Ficha inmobiliaria" hidden>
+    <button id="close-popup" aria-label="Cerrar ficha" class="close">×</button>
+    <h2>Oferta inmobiliaria</h2><div id="popup-content"></div>
+  </div>
+</body>
+</html>
